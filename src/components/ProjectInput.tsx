@@ -1,4 +1,4 @@
-import { useState, forwardRef } from 'react';
+import { useState } from 'react';
 import { Github, Send, Loader2, FolderGit2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,7 +11,7 @@ interface ProjectInputProps {
   isLoading: boolean;
 }
 
-export const ProjectInput = forwardRef<HTMLDivElement, ProjectInputProps>(({ onSubmit, isLoading }, ref) => {
+export const ProjectInput = ({ onSubmit, isLoading }: ProjectInputProps) => {
   const [githubUrl, setGithubUrl] = useState('');
   const [isFetching, setIsFetching] = useState(false);
   const [fetchedFiles, setFetchedFiles] = useState<{ path: string; content: string }[] | null>(null);
@@ -162,6 +162,4 @@ export const ProjectInput = forwardRef<HTMLDivElement, ProjectInputProps>(({ onS
       </div>
     </Card>
   );
-});
-
-ProjectInput.displayName = 'ProjectInput';
+};
