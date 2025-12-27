@@ -91,43 +91,147 @@ export const ExportPdfButton = ({ result, projectUrl }: ExportPdfButtonProps) =>
       
       yPosition += 50;
 
-      // Draw Bar Chart for Categories
-      checkNewPage(70);
+      // Draw Radar Chart for Categories
+      checkNewPage(100);
       pdf.setFontSize(14);
       pdf.setTextColor(30, 30, 30);
-      pdf.text('BIỂU ĐỒ ĐIỂM THEO TIÊU CHÍ', margin, yPosition);
+      pdf.text('BIỂU ĐỒ RADAR - ĐÁNH GIÁ CÁC TIÊU CHÍ', pageWidth / 2, yPosition, { align: 'center' });
       yPosition += 10;
 
-      const barHeight = 8;
-      const barMaxWidth = pageWidth - margin * 2 - 40;
+      // Radar chart configuration
+      const radarCenterX = pageWidth / 2;
+      const radarCenterY = yPosition + 45;
+      const radarRadius = 35;
+      const numCategories = result.categories.length;
+      const angleStep = (2 * Math.PI) / numCategories;
+
+      // Draw radar grid (5 levels: 20, 40, 60, 80, 100)
+      const gridLevels = [20, 40, 60, 80, 100];
+      gridLevels.forEach((level) => {
+        const levelRadius = (level / 100) * radarRadius;
+        pdf.setDrawColor(220, 220, 220);
+        pdf.setLineWidth(0.3);
+        
+        // Draw polygon for this level
+        for (let i = 0; i < numCategories; i++) {
+          const angle1 = i * angleStep - Math.PI / 2;
+          const angle2 = ((i + 1) % numCategories) * angleStep - Math.PI / 2;
+          const x1 = radarCenterX + levelRadius * Math.cos(angle1);
+          const y1 = radarCenterY + levelRadius * Math.sin(angle1);
+          const x2 = radarCenterX + levelRadius * Math.cos(angle2);
+          const y2 = radarCenterY + levelRadius * Math.sin(angle2);
+          pdf.line(x1, y1, x2, y2);
+        }
+      });
+
+      // Draw axis lines
+      for (let i = 0; i < numCategories; i++) {
+        const angle = i * angleStep - Math.PI / 2;
+        const x = radarCenterX + radarRadius * Math.cos(angle);
+        const y = radarCenterY + radarRadius * Math.sin(angle);
+        pdf.setDrawColor(180, 180, 180);
+        pdf.setLineWidth(0.5);
+        pdf.line(radarCenterX, radarCenterY, x, y);
+      }
+
+      // Draw data polygon (filled)
+      const dataPoints: { x: number; y: number }[] = [];
+      result.categories.forEach((category, i) => {
+        const angle = i * angleStep - Math.PI / 2;
+        const pointRadius = (category.score / 100) * radarRadius;
+        dataPoints.push({
+          x: radarCenterX + pointRadius * Math.cos(angle),
+          y: radarCenterY + pointRadius * Math.sin(angle)
+        });
+      });
+
+      // Fill the data polygon with semi-transparent color
+      pdf.setFillColor(59, 130, 246);
+      pdf.setGState(new (pdf as any).GState({ opacity: 0.3 }));
+      
+      // Draw filled polygon manually
+      if (dataPoints.length > 2) {
+        pdf.setDrawColor(59, 130, 246);
+        pdf.setLineWidth(1.5);
+        
+        // Create path for polygon
+        for (let i = 0; i < dataPoints.length; i++) {
+          const next = (i + 1) % dataPoints.length;
+          pdf.line(dataPoints[i].x, dataPoints[i].y, dataPoints[next].x, dataPoints[next].y);
+        }
+      }
+
+      // Reset opacity
+      pdf.setGState(new (pdf as any).GState({ opacity: 1 }));
+
+      // Draw data points
+      dataPoints.forEach((point, i) => {
+        const score = result.categories[i].score;
+        const pointColor = score >= 80 ? [34, 197, 94] : score >= 60 ? [234, 179, 8] : [239, 68, 68];
+        pdf.setFillColor(pointColor[0], pointColor[1], pointColor[2]);
+        pdf.circle(point.x, point.y, 2, 'F');
+      });
+
+      // Draw category labels
+      pdf.setFontSize(8);
+      result.categories.forEach((category, i) => {
+        const angle = i * angleStep - Math.PI / 2;
+        const labelRadius = radarRadius + 8;
+        const x = radarCenterX + labelRadius * Math.cos(angle);
+        const y = radarCenterY + labelRadius * Math.sin(angle);
+        
+        // Adjust text alignment based on position
+        const scoreColor = category.score >= 80 ? [34, 197, 94] : category.score >= 60 ? [234, 179, 8] : [239, 68, 68];
+        pdf.setTextColor(scoreColor[0], scoreColor[1], scoreColor[2]);
+        
+        let align: 'center' | 'left' | 'right' = 'center';
+        if (Math.cos(angle) > 0.3) align = 'left';
+        else if (Math.cos(angle) < -0.3) align = 'right';
+        
+        const shortName = category.name.length > 12 ? category.name.substring(0, 10) + '...' : category.name;
+        pdf.text(`${shortName} (${category.score})`, x, y, { align });
+      });
+
+      yPosition = radarCenterY + radarRadius + 25;
+
+      // Draw Bar Chart as secondary visualization
+      checkNewPage(50);
+      pdf.setFontSize(12);
+      pdf.setTextColor(30, 30, 30);
+      pdf.text('CHI TIẾT ĐIỂM THEO TIÊU CHÍ', margin, yPosition);
+      yPosition += 8;
+
+      const barHeight = 6;
+      const barMaxWidth = pageWidth - margin * 2 - 45;
       
       result.categories.forEach((category) => {
-        checkNewPage(15);
+        checkNewPage(12);
         
         // Category name
-        pdf.setFontSize(9);
+        pdf.setFontSize(8);
         pdf.setTextColor(60, 60, 60);
-        pdf.text(category.name, margin, yPosition + 5);
+        const shortName = category.name.length > 12 ? category.name.substring(0, 10) + '...' : category.name;
+        pdf.text(shortName, margin, yPosition + 4);
         
         // Background bar
         pdf.setFillColor(230, 230, 230);
-        pdf.roundedRect(margin + 35, yPosition, barMaxWidth, barHeight, 1, 1, 'F');
+        pdf.roundedRect(margin + 38, yPosition, barMaxWidth, barHeight, 1, 1, 'F');
         
         // Score bar
         const barWidth = (category.score / 100) * barMaxWidth;
         const barColor = category.score >= 80 ? [34, 197, 94] : category.score >= 60 ? [234, 179, 8] : [239, 68, 68];
         pdf.setFillColor(barColor[0], barColor[1], barColor[2]);
-        pdf.roundedRect(margin + 35, yPosition, barWidth, barHeight, 1, 1, 'F');
+        pdf.roundedRect(margin + 38, yPosition, barWidth, barHeight, 1, 1, 'F');
         
         // Score text
-        pdf.setFontSize(9);
+        pdf.setFontSize(8);
         pdf.setTextColor(barColor[0], barColor[1], barColor[2]);
-        pdf.text(`${category.score}`, margin + 35 + barMaxWidth + 3, yPosition + 6);
+        pdf.text(`${category.score}`, margin + 38 + barMaxWidth + 3, yPosition + 5);
         
-        yPosition += 12;
+        yPosition += 10;
       });
 
-      yPosition += 10;
+      yPosition += 8;
 
       // Critical Issues
       if (result.criticalIssues && result.criticalIssues.length > 0) {
