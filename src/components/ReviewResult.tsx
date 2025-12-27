@@ -2,15 +2,16 @@ import { Shield, Search, CheckCircle, Code, Lightbulb, AlertTriangle, XCircle, S
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { ExportPdfButton } from './ExportPdfButton';
 
-interface ReviewCategory {
+export interface ReviewCategory {
   name: string;
   score: number;
   issues: string[];
   suggestions: string[];
 }
 
-interface ReviewResultData {
+export interface ReviewResultData {
   overallScore: number;
   summary: string;
   categories: ReviewCategory[];
@@ -24,6 +25,7 @@ interface ReviewResultProps {
   isStreaming: boolean;
   streamContent: string;
   isProjectReview?: boolean;
+  projectUrl?: string;
 }
 
 const getScoreColor = (score: number) => {
@@ -83,7 +85,7 @@ const categoryIcons: Record<string, React.ReactNode> = {
   'Performance': <Zap className="w-4 h-4" />,
 };
 
-export const ReviewResult = ({ result, isStreaming, streamContent, isProjectReview }: ReviewResultProps) => {
+export const ReviewResult = ({ result, isStreaming, streamContent, isProjectReview, projectUrl }: ReviewResultProps) => {
   if (isStreaming) {
     return (
       <Card className="p-6 animate-fade-in">
@@ -118,9 +120,14 @@ export const ReviewResult = ({ result, isStreaming, streamContent, isProjectRevi
             </h3>
             <p className="text-muted-foreground">{result.summary}</p>
           </div>
-          <Badge variant={result.overallScore >= 80 ? 'default' : result.overallScore >= 60 ? 'secondary' : 'destructive'} className="text-sm px-3 py-1">
-            {result.overallScore >= 80 ? 'Tốt' : result.overallScore >= 60 ? 'Trung bình' : 'Cần cải thiện'}
-          </Badge>
+          <div className="flex items-center gap-3">
+            {isProjectReview && (
+              <ExportPdfButton result={result} projectUrl={projectUrl} />
+            )}
+            <Badge variant={result.overallScore >= 80 ? 'default' : result.overallScore >= 60 ? 'secondary' : 'destructive'} className="text-sm px-3 py-1">
+              {result.overallScore >= 80 ? 'Tốt' : result.overallScore >= 60 ? 'Trung bình' : 'Cần cải thiện'}
+            </Badge>
+          </div>
         </div>
       </Card>
 
