@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Code, FolderGit2 } from 'lucide-react';
 
 const Index = () => {
-  const { isLoading, isStreaming, streamContent, result, isProjectReview, reviewCode, reviewProject, loadFromHistory } = useCodeReview();
+  const { isLoading, isStreaming, streamContent, result, isProjectReview, projectUrl, reviewCode, reviewProject, loadFromHistory } = useCodeReview();
   const { user } = useAuth();
 
   return (
@@ -74,6 +74,7 @@ const Index = () => {
                     isStreaming={isStreaming} 
                     streamContent={streamContent}
                     isProjectReview={isProjectReview}
+                    projectUrl={projectUrl}
                   />
                 </section>
               )}

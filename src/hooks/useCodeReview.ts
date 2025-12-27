@@ -27,6 +27,7 @@ export const useCodeReview = () => {
   const [streamContent, setStreamContent] = useState('');
   const [result, setResult] = useState<ReviewResult | null>(null);
   const [isProjectReview, setIsProjectReview] = useState(false);
+  const [projectUrl, setProjectUrl] = useState<string | undefined>(undefined);
 
   const saveToHistory = useCallback(async (code: string, reviewResult: ReviewResult) => {
     if (!user) return;
@@ -130,6 +131,7 @@ export const useCodeReview = () => {
     setStreamContent('');
     setResult(null);
     setIsProjectReview(false);
+    setProjectUrl(undefined);
 
     try {
       const response = await fetch(
@@ -165,12 +167,13 @@ export const useCodeReview = () => {
     }
   }, [saveToHistory]);
 
-  const reviewProject = useCallback(async (files: { path: string; content: string }[], repoName: string) => {
+  const reviewProject = useCallback(async (files: { path: string; content: string }[], repoName: string, repoUrl?: string) => {
     setIsLoading(true);
     setIsStreaming(true);
     setStreamContent('');
     setResult(null);
     setIsProjectReview(true);
+    setProjectUrl(repoUrl || `https://github.com/${repoName}`);
 
     try {
       const response = await fetch(
@@ -220,6 +223,7 @@ export const useCodeReview = () => {
     streamContent,
     result,
     isProjectReview,
+    projectUrl,
     reviewCode,
     reviewProject,
     loadFromHistory,
