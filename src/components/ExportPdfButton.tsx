@@ -26,326 +26,192 @@ interface ExportPdfButtonProps {
 
 export const ExportPdfButton = ({ result, projectUrl }: ExportPdfButtonProps) => {
   const [isExporting, setIsExporting] = useState(false);
+  const hiddenRef = useRef<HTMLDivElement>(null);
+
+  const getScoreColor = (score: number) => {
+    if (score >= 80) return '#22c55e';
+    if (score >= 60) return '#eab308';
+    return '#ef4444';
+  };
 
   const exportToPdf = async () => {
     setIsExporting(true);
     
     try {
+      // Create hidden container for rendering
+      const container = document.createElement('div');
+      container.style.cssText = `
+        position: fixed;
+        left: -9999px;
+        top: 0;
+        width: 800px;
+        background: white;
+        padding: 40px;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      `;
+      
+      container.innerHTML = `
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h1 style="color: #3b82f6; font-size: 28px; margin: 0;">BÁO CÁO ĐÁNH GIÁ PROJECT</h1>
+          ${projectUrl ? `<p style="color: #666; font-size: 12px; margin: 10px 0;">Repository: ${projectUrl}</p>` : ''}
+          <p style="color: #666; font-size: 12px; margin: 5px 0;">Ngày tạo: ${new Date().toLocaleDateString('vi-VN')}</p>
+        </div>
+
+        <div style="background: #f5f7fa; border-radius: 12px; padding: 25px; margin-bottom: 30px; display: flex; align-items: center; gap: 20px;">
+          <div style="width: 80px; height: 80px; border-radius: 50%; background: ${getScoreColor(result.overallScore)}; display: flex; align-items: center; justify-content: center;">
+            <span style="color: white; font-size: 28px; font-weight: bold;">${result.overallScore}</span>
+          </div>
+          <div>
+            <h2 style="margin: 0 0 10px 0; color: #1e1e1e; font-size: 18px;">Điểm đánh giá tổng thể</h2>
+            <p style="margin: 0; color: #555; font-size: 14px; line-height: 1.5;">${result.summary}</p>
+          </div>
+        </div>
+
+        <h3 style="color: #1e1e1e; font-size: 16px; margin-bottom: 15px; text-align: center;">BIỂU ĐỒ RADAR - ĐÁNH GIÁ CÁC TIÊU CHÍ</h3>
+        <div style="display: flex; justify-content: center; margin-bottom: 30px;">
+          <svg width="300" height="300" viewBox="-150 -150 300 300">
+            ${(() => {
+              const numCats = result.categories.length;
+              const angleStep = (2 * Math.PI) / numCats;
+              const radius = 100;
+              
+              // Grid levels
+              let gridLines = '';
+              [20, 40, 60, 80, 100].forEach(level => {
+                const r = (level / 100) * radius;
+                const points = result.categories.map((_, i) => {
+                  const angle = i * angleStep - Math.PI / 2;
+                  return `${r * Math.cos(angle)},${r * Math.sin(angle)}`;
+                }).join(' ');
+                gridLines += `<polygon points="${points}" fill="none" stroke="#ddd" stroke-width="1"/>`;
+              });
+              
+              // Axis lines
+              let axisLines = '';
+              result.categories.forEach((_, i) => {
+                const angle = i * angleStep - Math.PI / 2;
+                axisLines += `<line x1="0" y1="0" x2="${radius * Math.cos(angle)}" y2="${radius * Math.sin(angle)}" stroke="#ccc" stroke-width="1"/>`;
+              });
+              
+              // Data polygon
+              const dataPoints = result.categories.map((cat, i) => {
+                const angle = i * angleStep - Math.PI / 2;
+                const r = (cat.score / 100) * radius;
+                return `${r * Math.cos(angle)},${r * Math.sin(angle)}`;
+              }).join(' ');
+              
+              // Labels
+              let labels = '';
+              result.categories.forEach((cat, i) => {
+                const angle = i * angleStep - Math.PI / 2;
+                const labelR = radius + 20;
+                const x = labelR * Math.cos(angle);
+                const y = labelR * Math.sin(angle);
+                const anchor = Math.cos(angle) > 0.3 ? 'start' : Math.cos(angle) < -0.3 ? 'end' : 'middle';
+                labels += `<text x="${x}" y="${y}" text-anchor="${anchor}" font-size="10" fill="${getScoreColor(cat.score)}">${cat.name.substring(0, 12)} (${cat.score})</text>`;
+              });
+              
+              // Data points
+              let dots = '';
+              result.categories.forEach((cat, i) => {
+                const angle = i * angleStep - Math.PI / 2;
+                const r = (cat.score / 100) * radius;
+                dots += `<circle cx="${r * Math.cos(angle)}" cy="${r * Math.sin(angle)}" r="5" fill="${getScoreColor(cat.score)}"/>`;
+              });
+              
+              return gridLines + axisLines + `<polygon points="${dataPoints}" fill="rgba(59, 130, 246, 0.3)" stroke="#3b82f6" stroke-width="2"/>` + dots + labels;
+            })()}
+          </svg>
+        </div>
+
+        <h3 style="color: #1e1e1e; font-size: 16px; margin-bottom: 15px;">CHI TIẾT ĐIỂM THEO TIÊU CHÍ</h3>
+        ${result.categories.map(cat => `
+          <div style="margin-bottom: 12px;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+              <span style="font-size: 12px; color: #444;">${cat.name}</span>
+              <span style="font-size: 12px; font-weight: bold; color: ${getScoreColor(cat.score)};">${cat.score}/100</span>
+            </div>
+            <div style="background: #e5e7eb; border-radius: 4px; height: 8px; overflow: hidden;">
+              <div style="background: ${getScoreColor(cat.score)}; height: 100%; width: ${cat.score}%; border-radius: 4px;"></div>
+            </div>
+          </div>
+        `).join('')}
+
+        ${result.criticalIssues && result.criticalIssues.length > 0 ? `
+          <div style="background: #fef2f2; border: 1px solid #ef4444; border-radius: 8px; padding: 15px; margin: 25px 0;">
+            <h4 style="color: #dc2626; margin: 0 0 10px 0; font-size: 14px;">⚠ VẤN ĐỀ NGHIÊM TRỌNG</h4>
+            ${result.criticalIssues.map(issue => `<p style="margin: 5px 0; font-size: 12px; color: #555;">• ${issue}</p>`).join('')}
+          </div>
+        ` : ''}
+
+        ${result.categories.map(cat => `
+          <div style="margin-bottom: 20px; page-break-inside: avoid;">
+            <div style="background: ${getScoreColor(cat.score)}; color: white; padding: 10px 15px; border-radius: 6px; margin-bottom: 10px;">
+              <strong>${cat.name} - Điểm: ${cat.score}/100</strong>
+            </div>
+            ${cat.issues.length > 0 ? `
+              <div style="margin-bottom: 10px;">
+                <p style="color: #dc2626; font-size: 13px; font-weight: bold; margin: 0 0 5px 0;">Vấn đề phát hiện:</p>
+                ${cat.issues.map(issue => `<p style="margin: 3px 0 3px 10px; font-size: 12px; color: #555;">• ${issue}</p>`).join('')}
+              </div>
+            ` : ''}
+            ${cat.suggestions.length > 0 ? `
+              <div>
+                <p style="color: #22c55e; font-size: 13px; font-weight: bold; margin: 0 0 5px 0;">Đề xuất cải thiện:</p>
+                ${cat.suggestions.map(sug => `<p style="margin: 3px 0 3px 10px; font-size: 12px; color: #555;">✓ ${sug}</p>`).join('')}
+              </div>
+            ` : ''}
+          </div>
+        `).join('')}
+
+        ${result.recommendations && result.recommendations.length > 0 ? `
+          <div style="background: #eff6ff; border: 1px solid #3b82f6; border-radius: 8px; padding: 15px; margin-top: 25px;">
+            <h4 style="color: #2563eb; margin: 0 0 10px 0; font-size: 14px;">💡 ĐỀ XUẤT CẢI THIỆN TỔNG THỂ</h4>
+            ${result.recommendations.map(rec => `<p style="margin: 5px 0; font-size: 12px; color: #444;">✓ ${rec}</p>`).join('')}
+          </div>
+        ` : ''}
+
+        <div style="text-align: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd;">
+          <p style="color: #999; font-size: 10px;">Được tạo bởi Code Review AI</p>
+        </div>
+      `;
+      
+      document.body.appendChild(container);
+      
+      // Wait for render
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Capture to canvas
+      const canvas = await html2canvas(container, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff'
+      });
+      
+      // Remove container
+      document.body.removeChild(container);
+      
+      // Create PDF
+      const imgWidth = 210; // A4 width in mm
+      const pageHeight = 297; // A4 height in mm
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      
       const pdf = new jsPDF('p', 'mm', 'a4');
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-      const margin = 15;
-      let yPosition = margin;
-
-      // Helper function to add new page if needed
-      const checkNewPage = (neededHeight: number) => {
-        if (yPosition + neededHeight > pageHeight - margin) {
-          pdf.addPage();
-          yPosition = margin;
-          return true;
-        }
-        return false;
-      };
-
-      // Title
-      pdf.setFontSize(24);
-      pdf.setTextColor(59, 130, 246);
-      pdf.text('BÁO CÁO ĐÁNH GIÁ PROJECT', pageWidth / 2, yPosition, { align: 'center' });
-      yPosition += 15;
-
-      // Project URL if available
-      if (projectUrl) {
-        pdf.setFontSize(10);
-        pdf.setTextColor(100, 100, 100);
-        pdf.text(`Repository: ${projectUrl}`, pageWidth / 2, yPosition, { align: 'center' });
-        yPosition += 8;
-      }
-
-      // Date
-      pdf.setFontSize(10);
-      pdf.setTextColor(100, 100, 100);
-      pdf.text(`Ngày tạo: ${new Date().toLocaleDateString('vi-VN')}`, pageWidth / 2, yPosition, { align: 'center' });
-      yPosition += 15;
-
-      // Overall Score Section
-      pdf.setFillColor(245, 247, 250);
-      pdf.roundedRect(margin, yPosition, pageWidth - margin * 2, 40, 3, 3, 'F');
+      let heightLeft = imgHeight;
+      let position = 0;
       
-      // Score circle simulation
-      const scoreColor = result.overallScore >= 80 ? [34, 197, 94] : result.overallScore >= 60 ? [234, 179, 8] : [239, 68, 68];
-      pdf.setFillColor(scoreColor[0], scoreColor[1], scoreColor[2]);
-      pdf.circle(margin + 20, yPosition + 20, 15, 'F');
+      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
       
-      pdf.setFontSize(20);
-      pdf.setTextColor(255, 255, 255);
-      pdf.text(result.overallScore.toString(), margin + 20, yPosition + 25, { align: 'center' });
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+      }
       
-      pdf.setFontSize(14);
-      pdf.setTextColor(30, 30, 30);
-      pdf.text('Điểm đánh giá tổng thể', margin + 45, yPosition + 15);
-      
-      pdf.setFontSize(10);
-      pdf.setTextColor(80, 80, 80);
-      const summaryLines = pdf.splitTextToSize(result.summary, pageWidth - margin * 2 - 50);
-      pdf.text(summaryLines.slice(0, 2), margin + 45, yPosition + 25);
-      
-      yPosition += 50;
-
-      // Draw Radar Chart for Categories
-      checkNewPage(100);
-      pdf.setFontSize(14);
-      pdf.setTextColor(30, 30, 30);
-      pdf.text('BIỂU ĐỒ RADAR - ĐÁNH GIÁ CÁC TIÊU CHÍ', pageWidth / 2, yPosition, { align: 'center' });
-      yPosition += 10;
-
-      // Radar chart configuration
-      const radarCenterX = pageWidth / 2;
-      const radarCenterY = yPosition + 45;
-      const radarRadius = 35;
-      const numCategories = result.categories.length;
-      const angleStep = (2 * Math.PI) / numCategories;
-
-      // Draw radar grid (5 levels: 20, 40, 60, 80, 100)
-      const gridLevels = [20, 40, 60, 80, 100];
-      gridLevels.forEach((level) => {
-        const levelRadius = (level / 100) * radarRadius;
-        pdf.setDrawColor(220, 220, 220);
-        pdf.setLineWidth(0.3);
-        
-        // Draw polygon for this level
-        for (let i = 0; i < numCategories; i++) {
-          const angle1 = i * angleStep - Math.PI / 2;
-          const angle2 = ((i + 1) % numCategories) * angleStep - Math.PI / 2;
-          const x1 = radarCenterX + levelRadius * Math.cos(angle1);
-          const y1 = radarCenterY + levelRadius * Math.sin(angle1);
-          const x2 = radarCenterX + levelRadius * Math.cos(angle2);
-          const y2 = radarCenterY + levelRadius * Math.sin(angle2);
-          pdf.line(x1, y1, x2, y2);
-        }
-      });
-
-      // Draw axis lines
-      for (let i = 0; i < numCategories; i++) {
-        const angle = i * angleStep - Math.PI / 2;
-        const x = radarCenterX + radarRadius * Math.cos(angle);
-        const y = radarCenterY + radarRadius * Math.sin(angle);
-        pdf.setDrawColor(180, 180, 180);
-        pdf.setLineWidth(0.5);
-        pdf.line(radarCenterX, radarCenterY, x, y);
-      }
-
-      // Draw data polygon (filled)
-      const dataPoints: { x: number; y: number }[] = [];
-      result.categories.forEach((category, i) => {
-        const angle = i * angleStep - Math.PI / 2;
-        const pointRadius = (category.score / 100) * radarRadius;
-        dataPoints.push({
-          x: radarCenterX + pointRadius * Math.cos(angle),
-          y: radarCenterY + pointRadius * Math.sin(angle)
-        });
-      });
-
-      // Fill the data polygon with semi-transparent color
-      pdf.setFillColor(59, 130, 246);
-      pdf.setGState(new (pdf as any).GState({ opacity: 0.3 }));
-      
-      // Draw filled polygon manually
-      if (dataPoints.length > 2) {
-        pdf.setDrawColor(59, 130, 246);
-        pdf.setLineWidth(1.5);
-        
-        // Create path for polygon
-        for (let i = 0; i < dataPoints.length; i++) {
-          const next = (i + 1) % dataPoints.length;
-          pdf.line(dataPoints[i].x, dataPoints[i].y, dataPoints[next].x, dataPoints[next].y);
-        }
-      }
-
-      // Reset opacity
-      pdf.setGState(new (pdf as any).GState({ opacity: 1 }));
-
-      // Draw data points
-      dataPoints.forEach((point, i) => {
-        const score = result.categories[i].score;
-        const pointColor = score >= 80 ? [34, 197, 94] : score >= 60 ? [234, 179, 8] : [239, 68, 68];
-        pdf.setFillColor(pointColor[0], pointColor[1], pointColor[2]);
-        pdf.circle(point.x, point.y, 2, 'F');
-      });
-
-      // Draw category labels
-      pdf.setFontSize(8);
-      result.categories.forEach((category, i) => {
-        const angle = i * angleStep - Math.PI / 2;
-        const labelRadius = radarRadius + 8;
-        const x = radarCenterX + labelRadius * Math.cos(angle);
-        const y = radarCenterY + labelRadius * Math.sin(angle);
-        
-        // Adjust text alignment based on position
-        const scoreColor = category.score >= 80 ? [34, 197, 94] : category.score >= 60 ? [234, 179, 8] : [239, 68, 68];
-        pdf.setTextColor(scoreColor[0], scoreColor[1], scoreColor[2]);
-        
-        let align: 'center' | 'left' | 'right' = 'center';
-        if (Math.cos(angle) > 0.3) align = 'left';
-        else if (Math.cos(angle) < -0.3) align = 'right';
-        
-        const shortName = category.name.length > 12 ? category.name.substring(0, 10) + '...' : category.name;
-        pdf.text(`${shortName} (${category.score})`, x, y, { align });
-      });
-
-      yPosition = radarCenterY + radarRadius + 25;
-
-      // Draw Bar Chart as secondary visualization
-      checkNewPage(50);
-      pdf.setFontSize(12);
-      pdf.setTextColor(30, 30, 30);
-      pdf.text('CHI TIẾT ĐIỂM THEO TIÊU CHÍ', margin, yPosition);
-      yPosition += 8;
-
-      const barHeight = 6;
-      const barMaxWidth = pageWidth - margin * 2 - 45;
-      
-      result.categories.forEach((category) => {
-        checkNewPage(12);
-        
-        // Category name
-        pdf.setFontSize(8);
-        pdf.setTextColor(60, 60, 60);
-        const shortName = category.name.length > 12 ? category.name.substring(0, 10) + '...' : category.name;
-        pdf.text(shortName, margin, yPosition + 4);
-        
-        // Background bar
-        pdf.setFillColor(230, 230, 230);
-        pdf.roundedRect(margin + 38, yPosition, barMaxWidth, barHeight, 1, 1, 'F');
-        
-        // Score bar
-        const barWidth = (category.score / 100) * barMaxWidth;
-        const barColor = category.score >= 80 ? [34, 197, 94] : category.score >= 60 ? [234, 179, 8] : [239, 68, 68];
-        pdf.setFillColor(barColor[0], barColor[1], barColor[2]);
-        pdf.roundedRect(margin + 38, yPosition, barWidth, barHeight, 1, 1, 'F');
-        
-        // Score text
-        pdf.setFontSize(8);
-        pdf.setTextColor(barColor[0], barColor[1], barColor[2]);
-        pdf.text(`${category.score}`, margin + 38 + barMaxWidth + 3, yPosition + 5);
-        
-        yPosition += 10;
-      });
-
-      yPosition += 8;
-
-      // Critical Issues
-      if (result.criticalIssues && result.criticalIssues.length > 0) {
-        checkNewPage(30);
-        
-        pdf.setFillColor(254, 242, 242);
-        pdf.setDrawColor(239, 68, 68);
-        pdf.roundedRect(margin, yPosition, pageWidth - margin * 2, 8 + result.criticalIssues.length * 8, 3, 3, 'FD');
-        
-        pdf.setFontSize(12);
-        pdf.setTextColor(220, 38, 38);
-        pdf.text('⚠ VẤN ĐỀ NGHIÊM TRỌNG', margin + 5, yPosition + 6);
-        yPosition += 12;
-        
-        result.criticalIssues.forEach((issue) => {
-          checkNewPage(10);
-          pdf.setFontSize(9);
-          pdf.setTextColor(80, 80, 80);
-          const issueLines = pdf.splitTextToSize(`• ${issue}`, pageWidth - margin * 2 - 10);
-          pdf.text(issueLines[0], margin + 5, yPosition);
-          yPosition += 7;
-        });
-        
-        yPosition += 10;
-      }
-
-      // Category Details
-      for (const category of result.categories) {
-        checkNewPage(50);
-        
-        const catColor = category.score >= 80 ? [34, 197, 94] : category.score >= 60 ? [234, 179, 8] : [239, 68, 68];
-        
-        pdf.setFillColor(catColor[0], catColor[1], catColor[2]);
-        pdf.roundedRect(margin, yPosition, pageWidth - margin * 2, 10, 2, 2, 'F');
-        
-        pdf.setFontSize(11);
-        pdf.setTextColor(255, 255, 255);
-        pdf.text(`${category.name} - Điểm: ${category.score}/100`, margin + 5, yPosition + 7);
-        yPosition += 15;
-
-        // Issues
-        if (category.issues.length > 0) {
-          pdf.setFontSize(10);
-          pdf.setTextColor(220, 38, 38);
-          pdf.text('Vấn đề phát hiện:', margin, yPosition);
-          yPosition += 6;
-          
-          category.issues.forEach((issue) => {
-            checkNewPage(8);
-            pdf.setFontSize(9);
-            pdf.setTextColor(80, 80, 80);
-            const issueLines = pdf.splitTextToSize(`• ${issue}`, pageWidth - margin * 2 - 5);
-            pdf.text(issueLines[0], margin + 5, yPosition);
-            yPosition += 6;
-          });
-          yPosition += 3;
-        }
-
-        // Suggestions
-        if (category.suggestions.length > 0) {
-          checkNewPage(15);
-          pdf.setFontSize(10);
-          pdf.setTextColor(34, 197, 94);
-          pdf.text('Đề xuất cải thiện:', margin, yPosition);
-          yPosition += 6;
-          
-          category.suggestions.forEach((suggestion) => {
-            checkNewPage(8);
-            pdf.setFontSize(9);
-            pdf.setTextColor(80, 80, 80);
-            const suggestionLines = pdf.splitTextToSize(`✓ ${suggestion}`, pageWidth - margin * 2 - 5);
-            pdf.text(suggestionLines[0], margin + 5, yPosition);
-            yPosition += 6;
-          });
-        }
-        
-        yPosition += 10;
-      }
-
-      // Recommendations
-      if (result.recommendations && result.recommendations.length > 0) {
-        checkNewPage(30);
-        
-        pdf.setFillColor(239, 246, 255);
-        pdf.setDrawColor(59, 130, 246);
-        const recBoxHeight = 12 + result.recommendations.length * 8;
-        pdf.roundedRect(margin, yPosition, pageWidth - margin * 2, Math.min(recBoxHeight, pageHeight - yPosition - margin), 3, 3, 'FD');
-        
-        pdf.setFontSize(12);
-        pdf.setTextColor(37, 99, 235);
-        pdf.text('💡 ĐỀ XUẤT CẢI THIỆN TỔNG THỂ', margin + 5, yPosition + 8);
-        yPosition += 14;
-        
-        result.recommendations.forEach((rec) => {
-          checkNewPage(10);
-          pdf.setFontSize(9);
-          pdf.setTextColor(60, 60, 60);
-          const recLines = pdf.splitTextToSize(`✓ ${rec}`, pageWidth - margin * 2 - 10);
-          pdf.text(recLines.slice(0, 2).join('\n'), margin + 5, yPosition);
-          yPosition += recLines.slice(0, 2).length * 5 + 3;
-        });
-      }
-
-      // Footer on each page
-      const totalPages = pdf.getNumberOfPages();
-      for (let i = 1; i <= totalPages; i++) {
-        pdf.setPage(i);
-        pdf.setFontSize(8);
-        pdf.setTextColor(150, 150, 150);
-        pdf.text(`Trang ${i}/${totalPages}`, pageWidth / 2, pageHeight - 8, { align: 'center' });
-        pdf.text('Được tạo bởi Code Review AI', pageWidth - margin, pageHeight - 8, { align: 'right' });
-      }
-
-      // Save PDF
+      // Save
       const fileName = `project-review-${new Date().toISOString().split('T')[0]}.pdf`;
       pdf.save(fileName);
       
