@@ -1,5 +1,8 @@
 import { useState, useCallback } from 'react';
 import { toast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import type { Json } from '@/integrations/supabase/types';
 
 interface ReviewCategory {
   name: string;
@@ -16,16 +19,37 @@ interface ReviewResult {
 }
 
 export const useCodeReview = () => {
+  const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamContent, setStreamContent] = useState('');
   const [result, setResult] = useState<ReviewResult | null>(null);
+  const [lastCode, setLastCode] = useState<string>('');
+
+  const saveToHistory = useCallback(async (code: string, reviewResult: ReviewResult) => {
+    if (!user) return;
+
+    const { error } = await supabase
+      .from('review_history')
+      .insert({
+        user_id: user.id,
+        code_snippet: code,
+        overall_score: reviewResult.overallScore,
+        summary: reviewResult.summary,
+        result_json: reviewResult as unknown as Json,
+      });
+
+    if (error) {
+      console.error('Error saving to history:', error);
+    }
+  }, [user]);
 
   const reviewCode = useCallback(async (code: string) => {
     setIsLoading(true);
     setIsStreaming(true);
     setStreamContent('');
     setResult(null);
+    setLastCode(code);
 
     try {
       const response = await fetch(
@@ -80,24 +104,20 @@ export const useCodeReview = () => {
               setStreamContent(fullContent);
             }
           } catch {
-            // Incomplete JSON, put back
             buffer = line + '\n' + buffer;
             break;
           }
         }
       }
 
-      // Parse the final JSON result
       setIsStreaming(false);
       
       try {
-        // Extract JSON from the response (might have markdown code blocks)
         let jsonContent = fullContent;
         const jsonMatch = fullContent.match(/```json\s*([\s\S]*?)\s*```/);
         if (jsonMatch) {
           jsonContent = jsonMatch[1];
         } else {
-          // Try to find raw JSON
           const startIndex = fullContent.indexOf('{');
           const endIndex = fullContent.lastIndexOf('}');
           if (startIndex !== -1 && endIndex !== -1) {
@@ -107,6 +127,9 @@ export const useCodeReview = () => {
 
         const parsed = JSON.parse(jsonContent) as ReviewResult;
         setResult(parsed);
+        
+        // Save to history if user is logged in
+        await saveToHistory(code, parsed);
         
         toast({
           title: 'Đánh giá hoàn tất!',
@@ -131,6 +154,12 @@ export const useCodeReview = () => {
     } finally {
       setIsLoading(false);
     }
+  }, [saveToHistory]);
+
+  const loadFromHistory = useCallback((historyResult: ReviewResult) => {
+    setResult(historyResult);
+    setIsStreaming(false);
+    setStreamContent('');
   }, []);
 
   return {
@@ -139,5 +168,6 @@ export const useCodeReview = () => {
     streamContent,
     result,
     reviewCode,
+    loadFromHistory,
   };
 };

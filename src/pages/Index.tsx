@@ -2,11 +2,14 @@ import { Header } from '@/components/Header';
 import { CodeInput } from '@/components/CodeInput';
 import { ReviewResult } from '@/components/ReviewResult';
 import { FeatureCards } from '@/components/FeatureCards';
+import { ReviewHistory } from '@/components/ReviewHistory';
 import { useCodeReview } from '@/hooks/useCodeReview';
+import { useAuth } from '@/contexts/AuthContext';
 import { Helmet } from 'react-helmet-async';
 
 const Index = () => {
-  const { isLoading, isStreaming, streamContent, result, reviewCode } = useCodeReview();
+  const { isLoading, isStreaming, streamContent, result, reviewCode, loadFromHistory } = useCodeReview();
+  const { user } = useAuth();
 
   return (
     <>
@@ -18,7 +21,7 @@ const Index = () => {
       <div className="min-h-screen bg-background">
         <Header />
         
-        <main className="container mx-auto px-4 py-8 max-w-5xl">
+        <main className="container mx-auto px-4 py-8">
           {/* Hero Section */}
           <section className="text-center mb-10 animate-fade-in">
             <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
@@ -32,21 +35,50 @@ const Index = () => {
           </section>
 
           {/* Features */}
-          <FeatureCards />
+          <div className="max-w-5xl mx-auto">
+            <FeatureCards />
+          </div>
 
-          {/* Code Input */}
-          <section className="mb-8">
-            <CodeInput onSubmit={reviewCode} isLoading={isLoading} />
-          </section>
+          {/* Main Content */}
+          <div className="grid lg:grid-cols-3 gap-8 max-w-7xl mx-auto">
+            {/* Left: Code Input & Results */}
+            <div className="lg:col-span-2 space-y-8">
+              <section>
+                <CodeInput onSubmit={reviewCode} isLoading={isLoading} />
+              </section>
 
-          {/* Results */}
-          {(isStreaming || result) && (
-            <section>
-              <ReviewResult 
-                result={result} 
-                isStreaming={isStreaming} 
-                streamContent={streamContent} 
-              />
+              {(isStreaming || result) && (
+                <section>
+                  <ReviewResult 
+                    result={result} 
+                    isStreaming={isStreaming} 
+                    streamContent={streamContent} 
+                  />
+                </section>
+              )}
+            </div>
+
+            {/* Right: History Sidebar */}
+            {user && (
+              <div className="lg:col-span-1">
+                <div className="sticky top-24">
+                  <ReviewHistory onSelectReview={loadFromHistory} />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Login prompt for non-authenticated users */}
+          {!user && (
+            <section className="mt-12 text-center">
+              <div className="bg-accent/50 rounded-xl p-6 max-w-md mx-auto">
+                <p className="text-foreground font-medium mb-2">
+                  Đăng nhập để lưu lịch sử review
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Tạo tài khoản miễn phí để lưu và xem lại các review đã thực hiện
+                </p>
+              </div>
             </section>
           )}
         </main>
