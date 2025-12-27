@@ -1,4 +1,4 @@
-import { Shield, Search, CheckCircle, Code, Lightbulb, AlertTriangle, XCircle, Sparkles } from 'lucide-react';
+import { Shield, Search, CheckCircle, Code, Lightbulb, AlertTriangle, XCircle, Sparkles, Layers, Zap } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -10,15 +10,20 @@ interface ReviewCategory {
   suggestions: string[];
 }
 
+interface ReviewResultData {
+  overallScore: number;
+  summary: string;
+  categories: ReviewCategory[];
+  fixedCode?: string;
+  criticalIssues?: string[];
+  recommendations?: string[];
+}
+
 interface ReviewResultProps {
-  result: {
-    overallScore: number;
-    summary: string;
-    categories: ReviewCategory[];
-    fixedCode?: string;
-  } | null;
+  result: ReviewResultData | null;
   isStreaming: boolean;
   streamContent: string;
+  isProjectReview?: boolean;
 }
 
 const getScoreColor = (score: number) => {
@@ -69,7 +74,16 @@ const ScoreCircle = ({ score }: { score: number }) => {
   );
 };
 
-export const ReviewResult = ({ result, isStreaming, streamContent }: ReviewResultProps) => {
+const categoryIcons: Record<string, React.ReactNode> = {
+  'SEO': <Search className="w-4 h-4" />,
+  'Bảo mật': <Shield className="w-4 h-4" />,
+  'Clean Code': <Code className="w-4 h-4" />,
+  'Chức năng': <CheckCircle className="w-4 h-4" />,
+  'Kiến trúc': <Layers className="w-4 h-4" />,
+  'Performance': <Zap className="w-4 h-4" />,
+};
+
+export const ReviewResult = ({ result, isStreaming, streamContent, isProjectReview }: ReviewResultProps) => {
   if (isStreaming) {
     return (
       <Card className="p-6 animate-fade-in">
@@ -77,10 +91,12 @@ export const ReviewResult = ({ result, isStreaming, streamContent }: ReviewResul
           <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center animate-pulse-glow">
             <Sparkles className="w-4 h-4 text-primary" />
           </div>
-          <h3 className="font-semibold text-foreground">Đang phân tích code...</h3>
+          <h3 className="font-semibold text-foreground">
+            {isProjectReview ? 'Đang phân tích project...' : 'Đang phân tích code...'}
+          </h3>
         </div>
         <div className="prose prose-sm dark:prose-invert max-w-none">
-          <pre className="whitespace-pre-wrap font-mono text-sm text-muted-foreground bg-code-bg p-4 rounded-lg border border-code-border">
+          <pre className="whitespace-pre-wrap font-mono text-sm text-muted-foreground bg-code-bg p-4 rounded-lg border border-code-border max-h-96 overflow-y-auto scrollbar-thin">
             {streamContent || 'Đang xử lý...'}
           </pre>
         </div>
@@ -90,13 +106,6 @@ export const ReviewResult = ({ result, isStreaming, streamContent }: ReviewResul
 
   if (!result) return null;
 
-  const categoryIcons: Record<string, React.ReactNode> = {
-    'SEO': <Search className="w-4 h-4" />,
-    'Bảo mật': <Shield className="w-4 h-4" />,
-    'Clean Code': <Code className="w-4 h-4" />,
-    'Chức năng': <CheckCircle className="w-4 h-4" />,
-  };
-
   return (
     <div className="space-y-6 animate-slide-up">
       {/* Overall Score */}
@@ -104,7 +113,9 @@ export const ReviewResult = ({ result, isStreaming, streamContent }: ReviewResul
         <div className="flex flex-col md:flex-row items-center gap-6">
           <ScoreCircle score={result.overallScore} />
           <div className="flex-1 text-center md:text-left">
-            <h3 className="text-xl font-semibold text-foreground mb-2">Điểm đánh giá tổng thể</h3>
+            <h3 className="text-xl font-semibold text-foreground mb-2">
+              {isProjectReview ? 'Điểm đánh giá Project' : 'Điểm đánh giá tổng thể'}
+            </h3>
             <p className="text-muted-foreground">{result.summary}</p>
           </div>
           <Badge variant={result.overallScore >= 80 ? 'default' : result.overallScore >= 60 ? 'secondary' : 'destructive'} className="text-sm px-3 py-1">
@@ -112,6 +123,24 @@ export const ReviewResult = ({ result, isStreaming, streamContent }: ReviewResul
           </Badge>
         </div>
       </Card>
+
+      {/* Critical Issues (for project review) */}
+      {result.criticalIssues && result.criticalIssues.length > 0 && (
+        <Card className="p-5 border-destructive/50 bg-destructive/5">
+          <div className="flex items-center gap-2 mb-4">
+            <AlertTriangle className="w-5 h-5 text-destructive" />
+            <h4 className="font-semibold text-destructive">Vấn đề nghiêm trọng cần sửa ngay</h4>
+          </div>
+          <ul className="space-y-2">
+            {result.criticalIssues.map((issue, i) => (
+              <li key={i} className="text-sm text-foreground flex items-start gap-2">
+                <XCircle className="w-4 h-4 text-destructive mt-0.5 flex-shrink-0" />
+                {issue}
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
 
       {/* Categories */}
       <div className="grid md:grid-cols-2 gap-4">
@@ -142,12 +171,17 @@ export const ReviewResult = ({ result, isStreaming, streamContent }: ReviewResul
                   <XCircle className="w-3 h-3" /> Vấn đề phát hiện
                 </p>
                 <ul className="space-y-1">
-                  {category.issues.map((issue, i) => (
+                  {category.issues.slice(0, 3).map((issue, i) => (
                     <li key={i} className="text-xs text-muted-foreground flex items-start gap-2">
                       <AlertTriangle className="w-3 h-3 text-warning mt-0.5 flex-shrink-0" />
                       {issue}
                     </li>
                   ))}
+                  {category.issues.length > 3 && (
+                    <li className="text-xs text-muted-foreground">
+                      +{category.issues.length - 3} vấn đề khác
+                    </li>
+                  )}
                 </ul>
               </div>
             )}
@@ -158,18 +192,41 @@ export const ReviewResult = ({ result, isStreaming, streamContent }: ReviewResul
                   <Lightbulb className="w-3 h-3" /> Đề xuất cải thiện
                 </p>
                 <ul className="space-y-1">
-                  {category.suggestions.map((suggestion, i) => (
+                  {category.suggestions.slice(0, 3).map((suggestion, i) => (
                     <li key={i} className="text-xs text-muted-foreground flex items-start gap-2">
                       <CheckCircle className="w-3 h-3 text-success mt-0.5 flex-shrink-0" />
                       {suggestion}
                     </li>
                   ))}
+                  {category.suggestions.length > 3 && (
+                    <li className="text-xs text-muted-foreground">
+                      +{category.suggestions.length - 3} đề xuất khác
+                    </li>
+                  )}
                 </ul>
               </div>
             )}
           </Card>
         ))}
       </div>
+
+      {/* Recommendations (for project review) */}
+      {result.recommendations && result.recommendations.length > 0 && (
+        <Card className="p-5 border-primary/50 bg-primary/5">
+          <div className="flex items-center gap-2 mb-4">
+            <Lightbulb className="w-5 h-5 text-primary" />
+            <h4 className="font-semibold text-primary">Đề xuất cải thiện tổng thể</h4>
+          </div>
+          <ul className="space-y-2">
+            {result.recommendations.map((rec, i) => (
+              <li key={i} className="text-sm text-foreground flex items-start gap-2">
+                <CheckCircle className="w-4 h-4 text-success mt-0.5 flex-shrink-0" />
+                {rec}
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
 
       {/* Fixed Code */}
       {result.fixedCode && (
